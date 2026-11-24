@@ -1,0 +1,88 @@
+name: Build Android - Cinzas de Valmora
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        format:
+          - androidPackage
+          - androidAppBundle
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar descompactador
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+
+      - name: Descompactar arquivos ZIP
+        shell: bash
+        run: |
+          set -e
+          mkdir -p extracted
+
+          find . -type f -name "*.zip" \
+            -not -path "./extracted/*" \
+            -print0 |
+          while IFS= read -r -d '' file; do
+            echo "Descompactando: $file"
+            unzip -o "$file" -d extracted
+          done
+
+      - name: Localizar projeto Unity
+        id: locate
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT_VERSION=$(find extracted . \
+            -type f \
+            -path "*/ProjectSettings/ProjectVersion.txt" \
+            -not -path "./.git/*" \
+            -print -quit)
+
+          if [ -z "$PROJECT_VERSION" ]; then
+            echo "Projeto Unity não encontrado!"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$(dirname "$PROJECT_VERSION")")
+          PROJECT_DIR=$(realpath "$PROJECT_DIR")
+
+          echo "Projeto encontrado: $PROJECT_DIR"
+
+          echo "project_path=${PROJECT_DIR#$GITHUB_WORKSPACE/}" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Compilar Android
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+
+        with:
+          projectPath: ${{ steps.locate.outputs.project_path }}
+          targetPlatform: Android
+          unityVersion: 2022.3.21f1
+          androidExportType: ${{ matrix.format }}
+          buildName: CinzasDeValmora
+          allowDirtyBuild: true
+
+      - name: Enviar arquivos compilados
+        uses: actions/upload-artifact@v4
+        with:
+          name: CinzasDeValmora-${{ matrix.format }}
+          path: build/Android
+          if-no-files-found: warn
