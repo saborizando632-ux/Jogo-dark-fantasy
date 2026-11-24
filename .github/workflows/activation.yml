@@ -9,21 +9,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do repositório
+      - name: Baixar repositório
         uses: actions/checkout@v4
 
       - name: Gerar arquivo ALF via Unity Builder
         id: activation
         uses: game-ci/unity-builder@v4
         with:
-          targetPlatform: StandaloneLinux64
-          unityVersion: 2022.3.10f1 # Substitua pela versão exata do seu projeto (ou remova esta linha para detecção automática)
+          targetPlatform: Android
+          unityVersion: 2022.3.21f1
           allowDirtyBuild: true
         continue-on-error: true
+
+      - name: Procurar arquivos ALF gerados
+        run: |
+          find . -name "*.alf" -print || true
 
       - name: Disponibilizar arquivo ALF
         uses: actions/upload-artifact@v4
         with:
           name: Unity-Activation-File
-          path: '*.alf'
+          path: '**/*.alf'
           if-no-files-found: error
